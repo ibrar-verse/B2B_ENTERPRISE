@@ -1,0 +1,25 @@
+<div id="catalog-grid" class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+  {% for product in products %}
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft transition hover:-translate-y-1 hover:border-emerald-200">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{{ product.category }}</div>
+          <h3 class="mt-2 text-xl font-bold text-slate-900">{{ product.name }}</h3>
+        </div>
+        <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">SKU {{ product.sku }}</div>
+      </div>
+      <div class="mt-6 rounded-3xl border border-slate-100 bg-slate-50 p-5">
+        <div class="text-sm text-slate-500">Vendor</div>
+        <div class="text-lg font-semibold text-slate-900">{{ product.vendor_name }}</div>
+        <div class="mt-4 text-3xl font-extrabold tracking-tight text-slate-900">PKR {{ product.unit_price|floatformat:2 }}</div>
+        <div class="text-sm text-slate-500">Minimum order quantity {{ product.min_order_qty }}</div>
+      </div>
+      <form method="post" action="{% url 'quick-checkout' product.id %}" class="mt-6">
+        {% csrf_token %}
+        <button type="submit" class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700">Create approved order</button>
+      </form>
+    </article>
+  {% empty %}
+    <div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">No products match your search.</div>
+  {% endfor %}
+</div>

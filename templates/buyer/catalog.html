@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Catalog | Enterprise Marketplace{% endblock %}
+
+{% block content %}
+<div class="space-y-10">
+  <section class="grid gap-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-soft lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+    <div class="space-y-4">
+      <div class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live procurement search</div>
+      <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">Source approved inventory and create escrow orders fast.</h1>
+      <p class="max-w-2xl text-slate-600">Search by product name, SKU, category, or vendor. Orders start approved so buyers can lock escrow immediately from the detail view.</p>
+    </div>
+
+    <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <label class="mb-2 block text-sm font-semibold text-slate-700">Search catalog</label>
+      <input type="text" name="q" value="{{ query|default:'' }}" placeholder="Search pumps, motors, raw materials..." class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" hx-get="{% url 'buyer-search' %}" hx-trigger="keyup changed delay:300ms" hx-target="#catalog-grid" hx-indicator="#search-loading">
+      <div id="search-loading" class="htmx-indicator mt-3 items-center gap-2 text-sm text-slate-500"><span class="h-4 w-4 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent"></span>Refreshing results</div>
+    </div>
+  </section>
+
+  {% include 'partials/catalog_grid.html' %}
+</div>
+{% endblock %}

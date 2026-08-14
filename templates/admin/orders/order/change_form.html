@@ -1,0 +1,34 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if original %}
+    {% if original.status == "APPROVED" %}
+      <li>
+        <a href="{% url 'admin:order-process-payment' original.pk %}" 
+           class="button" 
+           style="background-color: #2563eb; color: #fff; font-weight: bold; padding: 6px 12px; border-radius: 4px; text-decoration: none;">
+          ⚡ Process Payment
+        </a>
+      </li>
+    {% elif original.status == "PAID" %}
+      <li>
+        <a href="{% url 'admin:order-settle-escrow' original.pk %}" 
+           class="button" 
+           style="background-color: #059669; color: #fff; font-weight: bold; padding: 6px 12px; border-radius: 4px; text-decoration: none;"
+           onclick="return confirm('Release PKR {{ original.total_amount }} to vendor?');">
+          💰 Settle Escrow
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'admin:order-refund' original.pk %}" 
+           class="button" 
+           style="background-color: #dc2626; color: #fff; font-weight: bold; padding: 6px 12px; border-radius: 4px; text-decoration: none;"
+           onclick="return confirm('Are you sure you want to CANCEL & REFUND this order? This will reverse all ledger entries.');">
+          ↩️ Cancel & Refund
+        </a>
+      </li>
+    {% endif %}
+  {% endif %}
+{% endblock %}

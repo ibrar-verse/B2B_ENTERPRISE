@@ -1,0 +1,30 @@
+<header class="fixed inset-x-0 top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+  <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+    <a href="{% url 'portal-home' %}" class="flex items-center gap-3">
+      <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-600 text-sm font-extrabold text-white shadow-soft">EM</span>
+      <div>
+        <div class="text-sm font-extrabold tracking-tight text-slate-900">Enterprise Marketplace</div>
+        <div class="text-xs text-slate-500">White & Forest Green procurement ledger</div>
+      </div>
+    </a>
+
+    <nav class="hidden items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 md:flex">
+      <a href="{% url 'buyer-catalog' %}" class="rounded-full px-4 py-2 text-sm font-semibold {% if request.resolver_match.url_name == 'buyer-catalog' %}bg-white text-emerald-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">Catalog</a>
+      <a href="{% url 'buyer-orders' %}" class="rounded-full px-4 py-2 text-sm font-semibold {% if request.resolver_match.url_name == 'buyer-orders' or request.resolver_match.url_name == 'buyer-order-detail' %}bg-white text-emerald-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">Orders</a>
+      <a href="{% url 'vendor-dashboard' %}" class="rounded-full px-4 py-2 text-sm font-semibold {% if request.resolver_match.url_name == 'vendor-dashboard' or request.resolver_match.url_name == 'vendor-wallet' %}bg-white text-emerald-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">Vendor</a>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      {% if user.is_authenticated %}
+        <div class="hidden text-right sm:block">
+          <div class="text-sm font-semibold text-slate-900">{{ user.get_full_name|default:user.username }}</div>
+          <div class="text-xs text-slate-500">{{ user.organization.name|default:'Unassigned organization' }}</div>
+        </div>
+        <a href="{% url 'portal-logout' %}" class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:text-emerald-700">Sign out</a>
+      {% else %}
+        <a href="{% url 'portal-login' %}" class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:text-emerald-700">Sign in</a>
+        <a href="{% url 'portal-register' %}" class="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700">Create account</a>
+      {% endif %}
+    </div>
+  </div>
+</header>

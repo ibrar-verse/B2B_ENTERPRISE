@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Purchase Orders | Enterprise Marketplace{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+    <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Buyer workspace</div>
+        <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">Purchase orders</h1>
+        <p class="mt-2 text-slate-600">Track escrow lifecycle, approvals, settlements, and refunds for your organization.</p>
+      </div>
+      <a href="{% url 'buyer-catalog' %}" class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">New order</a>
+    </div>
+  </section>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="text-sm text-slate-500">Open escrow</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-900">PKR {{ escrow_balance|floatformat:2 }}</div>
+    </div>
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="text-sm text-slate-500">Settled balance</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-900">PKR {{ available_balance|floatformat:2 }}</div>
+    </div>
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="text-sm text-slate-500">Orders tracked</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-900">{{ orders_count }}</div>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-soft">
+    <table class="min-w-full divide-y divide-slate-200">
+      <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <tr>
+          <th class="px-6 py-4">Order</th>
+          <th class="px-6 py-4">Vendor</th>
+          <th class="px-6 py-4">Status</th>
+          <th class="px-6 py-4 text-right">Amount</th>
+          <th class="px-6 py-4 text-right">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+        {% for order in orders %}
+          <tr class="text-sm text-slate-700">
+            <td class="px-6 py-4 font-semibold text-slate-900">#{{ order.id }}</td>
+            <td class="px-6 py-4">{{ order.vendor.name }}</td>
+            <td class="px-6 py-4">
+              <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold {% if order.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700{% elif order.status == 'PAID' %}bg-amber-100 text-amber-700{% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-700{% else %}bg-slate-100 text-slate-700{% endif %}">{{ order.status }}</span>
+            </td>
+            <td class="px-6 py-4 text-right font-semibold text-slate-900">PKR {{ order.total_amount|floatformat:2 }}</td>
+            <td class="px-6 py-4 text-right"><a href="{% url 'buyer-order-detail' order.id %}" class="font-semibold text-emerald-700 hover:text-emerald-800">Open</a></td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="px-6 py-10 text-center text-slate-500">No purchase orders yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
