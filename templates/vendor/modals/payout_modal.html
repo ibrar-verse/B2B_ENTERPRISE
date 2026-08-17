@@ -1,43 +1,42 @@
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm" x-data="{ open: true }" x-show="open">
-  <div class="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Vendor payout</div>
-        <h2 class="mt-2 text-2xl font-extrabold text-slate-900">Request bank withdrawal</h2>
-      </div>
-      <button type="button" class="text-2xl leading-none text-slate-400 hover:text-slate-700" @click="open = false">×</button>
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+     x-data="{ open: true }" 
+     x-show="open" 
+     @keydown.escape.window="open = false; $el.remove()">
+     
+    <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl space-y-5" @click.away="open = false; $el.remove()">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Request Bank Payout</h3>
+                <p class="text-xs text-slate-500">Disburse settled funds directly to your 1Link IBAN.</p>
+            </div>
+            <button @click="open = false; $el.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+        </div>
+
+        {% if success_message %}
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-700">
+                {{ success_message }}
+            </div>
+            <button @click="open = false; $el.closest('.fixed').remove()" class="w-full rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white">
+                Done
+            </button>
+        {% else %}
+            <form hx-post="{% url 'vendor-payout' %}" hx-target="#modal-container" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Withdrawal Amount (PKR)</label>
+                    <input type="number" step="0.01" name="amount" required placeholder="50000.00"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Beneficiary IBAN / Bank Account</label>
+                    <input type="text" name="iban" required placeholder="PK00MEZN0001234567890101"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                </div>
+                
+                <button type="submit" class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition">
+                    Submit Payout Request →
+                </button>
+            </form>
+        {% endif %}
     </div>
-
-    {% if success_message %}
-      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ success_message }}</div>
-    {% endif %}
-
-    <form method="post" hx-post="{% url 'vendor-payout' %}" hx-target="#modal-container" hx-swap="innerHTML" class="mt-5 space-y-4">
-      {% csrf_token %}
-      <div>
-        <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.bank_name.label }}</label>
-        {{ form.bank_name }}
-      </div>
-      <div>
-        <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.account_title.label }}</label>
-        {{ form.account_title }}
-      </div>
-      <div>
-        <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.account_number.label }}</label>
-        {{ form.account_number }}
-      </div>
-      <div>
-        <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.amount.label }}</label>
-        {{ form.amount }}
-      </div>
-      <div>
-        <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.notes.label }}</label>
-        {{ form.notes }}
-      </div>
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" @click="open = false">Cancel</button>
-        <button type="submit" class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Submit payout</button>
-      </div>
-    </form>
-  </div>
 </div>

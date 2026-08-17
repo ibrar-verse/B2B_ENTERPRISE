@@ -3,12 +3,14 @@
 {% block title %}Order #{{ order.id }} | Enterprise Marketplace{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-8">
-  <div class="flex items-center justify-between">
-    <a href="{% url 'buyer-orders' %}" class="text-sm font-semibold text-slate-500 hover:text-emerald-700">← Back to purchase orders</a>
-    <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Order #{{ order.id }}</span>
-  </div>
+<div class="max-w-5xl mx-auto space-y-6 py-4">
+    <div class="flex items-center justify-between">
+        <a href="{% url 'buyer-orders' %}" class="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition">
+            ← Back to Purchase Orders
+        </a>
+        <span class="text-xs font-semibold text-slate-500">Order ID: #{{ order.id }}</span>
+    </div>
 
-  {% include 'partials/order_status_card.html' %}
+    {% include 'partials/order_status_card.html' with order=order error_message=error_message %}
 </div>
 {% endblock %}

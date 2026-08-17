@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
-from django.http import Http404
+from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
@@ -54,7 +54,7 @@ class EmailAuthenticationForm(AuthenticationForm):
     username = forms.EmailField(
         label='Work email',
         widget=forms.EmailInput(attrs={
-            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100',
+            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 text-sm',
             'placeholder': 'name@company.com',
             'autocomplete': 'email',
         }),
@@ -63,7 +63,7 @@ class EmailAuthenticationForm(AuthenticationForm):
         label='Password',
         strip=False,
         widget=forms.PasswordInput(attrs={
-            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100',
+            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 text-sm',
             'placeholder': 'Enter your password',
             'autocomplete': 'current-password',
         }),
@@ -192,8 +192,10 @@ def register_vendor_view(request):
 
 @require_GET
 def register_view(request):
-    return redirect('portal-home')
+    return redirect('register-buyer')
 
+
+# --- BUYER VIEWS ---
 
 @login_required
 @require_GET
@@ -202,16 +204,17 @@ def buyer_catalog(request):
     products = SAMPLE_PRODUCTS
     if query:
         products = [
-            product for product in products
-            if query in product['name'].lower()
-            or query in product['sku'].lower()
-            or query in product['category'].lower()
-            or query in product['vendor_name'].lower()
+            p for p in products
+            if query in p['name'].lower()
+            or query in p['sku'].lower()
+            or query in p['category'].lower()
+            or query in p['vendor_name'].lower()
         ]
 
     context = {
         'products': products,
         'query': request.GET.get('q', '').strip(),
+        'organization': _current_organization(request.user),
     }
     if request.headers.get('HX-Request'):
         return render(request, 'partials/catalog_grid.html', context)
@@ -228,7 +231,10 @@ def buyer_search(request):
 @require_GET
 def buyer_orders(request):
     organization = _current_organization(request.user)
-    orders = Order.objects.filter(buyer=organization).select_related('buyer', 'vendor').order_by('-id') if organization else Order.objects.none()
+    orders = (
+        Order.objects.filter(buyer=organization).select_related('buyer', 'vendor').order_by('-id')
+        if organization else Order.objects.none()
+    )
     return render(request, 'buyer/orders_list.html', {
         'orders': orders,
         'available_balance': sum((order.total_amount for order in orders if order.status == Order.Status.COMPLETED), Decimal('0.00')),
@@ -280,6 +286,8 @@ def quick_checkout(request, product_id):
     return redirect('buyer-order-detail', order_id=order.id)
 
 
+# --- HTMX ACTIONS ---
+
 @login_required
 @require_POST
 def execute_order_payment_htmx(request, order_id):
@@ -327,18 +335,27 @@ def dispute_refund_htmx(request, order_id):
     return render(request, 'partials/order_status_card.html', {'order': order})
 
 
+# --- VENDOR VIEWS ---
+
 @login_required
 @require_GET
 def vendor_dashboard(request):
     organization = _current_organization(request.user)
-    orders = Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id') if organization else Order.objects.none()
+    if organization and organization.org_type not in (Organization.OrgType.VENDOR, Organization.OrgType.BOTH) and not request.user.is_staff:
+        messages.error(request, 'Access restricted to vendor organizations.')
+        return redirect('buyer-catalog')
+
+    orders = (
+        Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id')
+        if organization else Order.objects.none()
+    )
     return render(request, 'vendor/dashboard.html', {
         'organization': organization,
         'orders': orders,
-        'pending_orders': [order for order in orders if order.status in {Order.Status.APPROVED, Order.Status.PAID}],
-        'total_volume': sum((order.total_amount for order in orders), Decimal('0.00')),
-        'paid_volume': sum((order.total_amount for order in orders if order.status == Order.Status.PAID), Decimal('0.00')),
-        'completed_volume': sum((order.total_amount for order in orders if order.status == Order.Status.COMPLETED), Decimal('0.00')),
+        'pending_orders': [o for o in orders if o.status in {Order.Status.APPROVED, Order.Status.PAID}],
+        'total_volume': sum((o.total_amount for o in orders), Decimal('0.00')),
+        'paid_volume': sum((o.total_amount for o in orders if o.status == Order.Status.PAID), Decimal('0.00')),
+        'completed_volume': sum((o.total_amount for o in orders if o.status == Order.Status.COMPLETED), Decimal('0.00')),
     })
 
 
@@ -346,9 +363,16 @@ def vendor_dashboard(request):
 @require_GET
 def vendor_wallet(request):
     organization = _current_organization(request.user)
-    orders = Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id') if organization else Order.objects.none()
-    available_balance = sum((order.total_amount for order in orders if order.status == Order.Status.COMPLETED), Decimal('0.00'))
-    escrow_balance = sum((order.total_amount for order in orders if order.status == Order.Status.PAID), Decimal('0.00'))
+    if organization and organization.org_type not in (Organization.OrgType.VENDOR, Organization.OrgType.BOTH) and not request.user.is_staff:
+        messages.error(request, 'Access restricted to vendor organizations.')
+        return redirect('buyer-catalog')
+
+    orders = (
+        Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id')
+        if organization else Order.objects.none()
+    )
+    available_balance = sum((o.total_amount for o in orders if o.status == Order.Status.COMPLETED), Decimal('0.00'))
+    escrow_balance = sum((o.total_amount for o in orders if o.status == Order.Status.PAID), Decimal('0.00'))
     return render(request, 'vendor/wallet.html', {
         'organization': organization,
         'orders': orders,
@@ -365,37 +389,8 @@ def vendor_payout(request):
     if request.method == 'POST':
         amount = request.POST.get('amount') or '0'
         messages.success(request, f'Payout request submitted for PKR {amount}.')
-        return render(request, 'vendor/modals/payout_modal.html', {'success_message': 'Payout request submitted successfully.'})
-
-    return render(request, 'vendor/modals/payout_modal.html', {})
-
-
-@login_required
-@require_GET
-def vendor_wallet(request):
-    organization = _get_current_organization(request.user)
-    orders = Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id') if organization else Order.objects.none()
-    available_balance = sum((order.total_amount for order in orders if order.status == Order.Status.COMPLETED), Decimal('0.00'))
-    escrow_balance = sum((order.total_amount for order in orders if order.status == Order.Status.PAID), Decimal('0.00'))
-    context = {
-        'organization': organization,
-        'orders': orders,
-        'available_balance': available_balance,
-        'escrow_balance': escrow_balance,
-        'payout_ready': available_balance,
-        'orders_count': orders.count(),
-    }
-    return render(request, 'vendor/wallet.html', context)
-
-
-@login_required
-@require_http_methods(['GET', 'POST'])
-def vendor_payout(request):
-    if request.method == 'POST':
-        amount = request.POST.get('amount') or '0'
-        messages.success(request, f'Payout request submitted for PKR {amount}.')
         return render(request, 'vendor/modals/payout_modal.html', {
-            'success_message': 'Payout request submitted successfully.',
+            'success_message': f'Payout request of PKR {amount} submitted successfully.',
         })
 
     return render(request, 'vendor/modals/payout_modal.html', {})
