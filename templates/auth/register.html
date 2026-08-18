@@ -1,61 +1,102 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ page_title|default:'Enterprise Registration' }} | Enterprise Marketplace{% endblock %}
+{% block title %}Register Organization - Enterprise Marketplace{% endblock %}
 
 {% block content %}
-<div class="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-    <section class="space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
-        <div class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{{ organization_type|default:'BUYER' }} onboarding</div>
-        <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">{{ page_title|default:'Create an account' }}</h1>
-        <p class="text-base leading-7 text-slate-600">{{ page_description|default:'Register your company and start working in the marketplace.' }}</p>
-
-        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <div class="text-sm font-semibold text-slate-900">What happens next</div>
-            <div class="mt-2 text-sm text-slate-600">When you finish registration, you will be signed in and taken to the correct buyer or vendor workspace.</div>
+<div class="max-w-lg mx-auto mt-6">
+    <div class="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+        <div class="text-center space-y-1">
+            <h1 class="text-2xl font-black text-slate-900">Get Started</h1>
+            <p class="text-xs text-slate-500">Create an organization and user account</p>
         </div>
-    </section>
 
-    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
-        <form method="post" class="space-y-5">
+        {% if form.non_field_errors %}
+            <div class="p-3.5 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700 rounded-xl space-y-1">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'portal-register' %}" class="space-y-4">
             {% csrf_token %}
-            {% if form.errors %}
-                <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">Please correct the errors below and try again.</div>
-            {% endif %}
 
             <div>
-                <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.company_name.label }}</label>
-                {{ form.company_name }}
-                {% if form.company_name.errors %}<p class="mt-2 text-sm text-rose-600">{{ form.company_name.errors|striptags }}</p>{% endif %}
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.organization_name.id_for_label }}">
+                    Organization Name
+                </label>
+                {{ form.organization_name }}
+                {% if form.organization_name.errors %}
+                    <p class="text-xs text-rose-600 mt-1">{{ form.organization_name.errors.0 }}</p>
+                {% endif %}
             </div>
+
             <div>
-                <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.tax_id.label }}</label>
-                {{ form.tax_id }}
-                {% if form.tax_id.errors %}<p class="mt-2 text-sm text-rose-600">{{ form.tax_id.errors|striptags }}</p>{% endif %}
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.role.id_for_label }}">
+                    Portal Role
+                </label>
+                {{ form.role }}
+                {% if form.role.errors %}
+                    <p class="text-xs text-rose-600 mt-1">{{ form.role.errors.0 }}</p>
+                {% endif %}
             </div>
-            <div class="grid gap-4 sm:grid-cols-2">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.username.label }}</label>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.username.id_for_label }}">
+                        Username
+                    </label>
                     {{ form.username }}
-                    {% if form.username.errors %}<p class="mt-2 text-sm text-rose-600">{{ form.username.errors|striptags }}</p>{% endif %}
+                    {% if form.username.errors %}
+                        <p class="text-xs text-rose-600 mt-1">{{ form.username.errors.0 }}</p>
+                    {% endif %}
                 </div>
+
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.email.label }}</label>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.email.id_for_label }}">
+                        Email
+                    </label>
                     {{ form.email }}
-                    {% if form.email.errors %}<p class="mt-2 text-sm text-rose-600">{{ form.email.errors|striptags }}</p>{% endif %}
+                    {% if form.email.errors %}
+                        <p class="text-xs text-rose-600 mt-1">{{ form.email.errors.0 }}</p>
+                    {% endif %}
                 </div>
-            </div>
-            <div>
-                <label class="mb-2 block text-sm font-semibold text-slate-700">{{ form.password.label }}</label>
-                {{ form.password }}
-                {% if form.password.errors %}<p class="mt-2 text-sm text-rose-600">{{ form.password.errors|striptags }}</p>{% endif %}
             </div>
 
-            <button type="submit" class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700">Register and continue</button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.password.id_for_label }}">
+                        Password
+                    </label>
+                    {{ form.password }}
+                    {% if form.password.errors %}
+                        <p class="text-xs text-rose-600 mt-1">{{ form.password.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" for="{{ form.confirm_password.id_for_label }}">
+                        Confirm Password
+                    </label>
+                    {{ form.confirm_password }}
+                    {% if form.confirm_password.errors %}
+                        <p class="text-xs text-rose-600 mt-1">{{ form.confirm_password.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <button type="submit"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition shadow-sm active:scale-[0.99] mt-2">
+                Register & Enter Portal →
+            </button>
         </form>
 
-        <div class="mt-6 border-t border-slate-200 pt-6 text-sm text-slate-600">
-            Already have an account? <a href="{% url 'portal-login' %}" class="font-semibold text-emerald-700 hover:text-emerald-800">Sign in</a>
+        <div class="pt-4 border-t border-slate-100 text-center">
+            <p class="text-xs text-slate-500">
+                Already registered? 
+                <a href="{% url 'portal-login' %}" class="font-bold text-emerald-600 hover:text-emerald-700">Sign In</a>
+            </p>
         </div>
-    </section>
+    </div>
 </div>
 {% endblock %}

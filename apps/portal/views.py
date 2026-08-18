@@ -1,314 +1,244 @@
-import uuid
 from decimal import Decimal
+import uuid
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import AuthenticationForm
-from django.http import Http404, HttpResponseForbidden
+from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils.text import slugify
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from apps.core.models import User
-from apps.orders.models import Order
+from apps.orders.models import Order, Product
 from apps.organizations.models import Organization
+from .forms import LoginForm, RegistrationForm
 
-from .forms import BuyerRegistrationForm, VendorRegistrationForm
-
-
-SAMPLE_PRODUCTS = [
-    {
-        'id': 1,
-        'name': 'Industrial High-Pressure Centrifugal Pump',
-        'sku': 'PMP-IND-500X',
-        'category': 'Mechanical',
-        'vendor_name': 'Atlas Heavy Engineering',
-        'unit_price': Decimal('50000.00'),
-        'min_order_qty': 1,
-    },
-    {
-        'id': 2,
-        'name': 'High-Efficiency 3-Phase Industrial Electric Motor',
-        'sku': 'MTR-3PH-400V',
-        'category': 'Electrical',
-        'vendor_name': 'Siemens Regional Vendor',
-        'unit_price': Decimal('75000.00'),
-        'min_order_qty': 2,
-    },
-    {
-        'id': 3,
-        'name': 'Heavy-Duty Carbon Steel Flange Set (DN200)',
-        'sku': 'FLG-CS-DN200',
-        'category': 'Raw Materials',
-        'vendor_name': 'Karachi Steel Traders',
-        'unit_price': Decimal('12500.00'),
-        'min_order_qty': 10,
-    },
-]
+User = get_user_model()
 
 
-class EmailAuthenticationForm(AuthenticationForm):
-    username = forms.EmailField(
-        label='Work email',
-        widget=forms.EmailInput(attrs={
-            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 text-sm',
-            'placeholder': 'name@company.com',
-            'autocomplete': 'email',
-        }),
-    )
-    password = forms.CharField(
-        label='Password',
-        strip=False,
-        widget=forms.PasswordInput(attrs={
-            'class': 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 text-sm',
-            'placeholder': 'Enter your password',
-            'autocomplete': 'current-password',
-        }),
-    )
-
-
-def _organization_slug(name):
-    base_slug = slugify(name) or 'organization'
-    candidate = base_slug
-    while Organization.objects.filter(slug=candidate).exists():
-        candidate = f'{base_slug}-{uuid.uuid4().hex[:6]}'
-    return candidate
-
-
-def _current_organization(user):
-    if user.is_authenticated and user.organization_id:
+def _get_user_organization(user):
+    """Helper to retrieve the user's organization."""
+    if hasattr(user, 'organization') and user.organization:
         return user.organization
+    if hasattr(user, 'profile') and getattr(user.profile, 'organization', None):
+        return user.profile.organization
     return None
 
 
-def _role_home(user):
-    if not user.is_authenticated:
-        return reverse('portal-home')
-    if user.is_staff or getattr(user, 'role', '') == User.Role.ADMIN:
-        return reverse('admin:index')
-    org = _current_organization(user)
-    if org and org.org_type in (Organization.OrgType.VENDOR, Organization.OrgType.BOTH):
-        return reverse('vendor-dashboard')
-    return reverse('buyer-catalog')
+def _get_user_role(user):
+    """Helper to retrieve the user's role."""
+    if hasattr(user, 'role') and user.role:
+        return user.role
+    if hasattr(user, 'profile') and getattr(user.profile, 'role', None):
+        return user.profile.role
+    return 'BUYER'
 
 
-def _create_user_and_org(form, org_type, default_role):
-    organization = Organization.objects.create(
-        name=form.cleaned_data['company_name'].strip(),
-        slug=_organization_slug(form.cleaned_data['company_name']),
-        org_type=org_type,
-    )
-    user = User.objects.create_user(
-        username=form.cleaned_data['username'].strip(),
-        email=form.cleaned_data['email'].strip().lower(),
-        password=form.cleaned_data['password'],
-        organization=organization,
-        role=default_role,
-    )
-    return user
-
+# ==========================================
+# AUTHENTICATION VIEWS
+# ==========================================
 
 def home_view(request):
-    return render(request, 'portal/home.html', {
-        'login_form': EmailAuthenticationForm(request),
-        'registration_success': request.GET.get('registered') == '1',
-        'role_home': _role_home(request.user) if request.user.is_authenticated else None,
-    })
+    if request.user.is_authenticated:
+        return redirect('portal-home')
+    return render(request, 'home.html')
 
 
-@require_http_methods(['GET', 'POST'])
+def portal_register(request):
+    if request.user.is_authenticated:
+        return redirect('portal-home')
+
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            email = form.cleaned_data['email']
+            password = form.cleaned_data['password']
+            org_name = form.cleaned_data['organization_name']
+            role = form.cleaned_data['role']
+
+            if User.objects.filter(username=username).exists():
+                form.add_error('username', 'This username is already taken.')
+                return render(request, 'auth/register.html', {'form': form})
+
+            # 1. Create Organization
+            slug = slugify(org_name) or f"org-{uuid.uuid4().hex[:6]}"
+            if Organization.objects.filter(slug=slug).exists():
+                slug = f"{slug}-{uuid.uuid4().hex[:4]}"
+            org = Organization.objects.create(name=org_name, slug=slug, org_type=role)
+
+            # 2. Create User linked directly to Organization and Role
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                organization=org,
+                role=role
+            )
+
+            # 3. Log In Immediately
+            login(request, user)
+
+            if role == 'VENDOR':
+                return redirect('vendor-dashboard')
+            return redirect('buyer-catalog')
+    else:
+        form = RegistrationForm()
+
+    return render(request, 'auth/register.html', {'form': form})
+
+
 def portal_login(request):
     if request.user.is_authenticated:
-        return redirect(_role_home(request.user))
+        return redirect('portal-home')
 
-    form = EmailAuthenticationForm(request, data=request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        login(request, form.get_user())
-        messages.success(request, 'Signed in successfully.')
-        return redirect(_role_home(form.get_user()))
-    return render(request, 'auth/login.html', {'login_form': form})
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            user = authenticate(
+                username=form.cleaned_data['username'],
+                password=form.cleaned_data['password']
+            )
+            if user:
+                login(request, user)
+                return redirect('portal-home')
+            else:
+                form.add_error(None, "Invalid username or password.")
+    else:
+        form = LoginForm()
+
+    return render(request, 'auth/login.html', {'form': form, 'login_form': form})
 
 
-@login_required
+@login_required(login_url='portal-login')
 def portal_logout(request):
     logout(request)
-    messages.info(request, 'You have been signed out.')
-    return redirect('portal-home')
+    messages.info(request, "You have been signed out.")
+    return redirect('home')
 
 
-def _render_registration_page(request, form, title, description, organization_type):
-    return render(request, 'auth/register.html', {
-        'form': form,
-        'page_title': title,
-        'page_description': description,
-        'organization_type': organization_type,
-    })
-
-
-@require_http_methods(['GET', 'POST'])
-def register_buyer_view(request):
-    if request.user.is_authenticated:
-        return redirect(_role_home(request.user))
-
-    form = BuyerRegistrationForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        user = _create_user_and_org(form, Organization.OrgType.BUYER, User.Role.PROCUREMENT_OFFICER)
-        login(request, user)
-        messages.success(request, 'Buyer workspace created successfully.')
-        return redirect('buyer-catalog')
-
-    return _render_registration_page(
-        request,
-        form,
-        'Register Buyer Workspace',
-        'Create a buyer organization to browse catalog items and lock escrow orders.',
-        'BUYER',
-    )
-
-
-@require_http_methods(['GET', 'POST'])
-def register_vendor_view(request):
-    if request.user.is_authenticated:
-        return redirect(_role_home(request.user))
-
-    form = VendorRegistrationForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        user = _create_user_and_org(form, Organization.OrgType.VENDOR, User.Role.MANAGER)
-        login(request, user)
-        messages.success(request, 'Vendor workspace created successfully.')
+@login_required(login_url='portal-login')
+def portal_home(request):
+    role = _get_user_role(request.user)
+    if role == 'VENDOR':
         return redirect('vendor-dashboard')
-
-    return _render_registration_page(
-        request,
-        form,
-        'Register Vendor Workspace',
-        'Create a vendor organization to manage incoming orders and wallet balances.',
-        'VENDOR',
-    )
+    return redirect('buyer-catalog')
 
 
-@require_GET
-def register_view(request):
-    return redirect('register-buyer')
+# ==========================================
+# BUYER PORTAL VIEWS
+# ==========================================
 
-
-# --- BUYER VIEWS ---
-
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def buyer_catalog(request):
-    query = request.GET.get('q', '').strip().lower()
-    products = SAMPLE_PRODUCTS
+    query = request.GET.get('q', '').strip()
+    products = Product.objects.filter(is_active=True).select_related('vendor')
+
     if query:
-        products = [
-            p for p in products
-            if query in p['name'].lower()
-            or query in p['sku'].lower()
-            or query in p['category'].lower()
-            or query in p['vendor_name'].lower()
-        ]
+        products = products.filter(
+            Q(name__icontains=query) |
+            Q(sku__icontains=query) |
+            Q(category__icontains=query) |
+            Q(vendor__name__icontains=query)
+        )
 
     context = {
         'products': products,
-        'query': request.GET.get('q', '').strip(),
-        'organization': _current_organization(request.user),
+        'query': query,
+        'organization': _get_user_organization(request.user),
     }
     if request.headers.get('HX-Request'):
         return render(request, 'partials/catalog_grid.html', context)
     return render(request, 'buyer/catalog.html', context)
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def buyer_search(request):
     return buyer_catalog(request)
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def buyer_orders(request):
-    organization = _current_organization(request.user)
+    org = _get_user_organization(request.user)
     orders = (
-        Order.objects.filter(buyer=organization).select_related('buyer', 'vendor').order_by('-id')
-        if organization else Order.objects.none()
+        Order.objects.filter(buyer=org).select_related('buyer', 'vendor').order_by('-id')
+        if org else Order.objects.none()
     )
     return render(request, 'buyer/orders_list.html', {
         'orders': orders,
-        'available_balance': sum((order.total_amount for order in orders if order.status == Order.Status.COMPLETED), Decimal('0.00')),
-        'escrow_balance': sum((order.total_amount for order in orders if order.status == Order.Status.PAID), Decimal('0.00')),
+        'available_balance': sum((o.total_amount for o in orders if o.status == Order.Status.COMPLETED), Decimal('0.00')),
+        'escrow_balance': sum((o.total_amount for o in orders if o.status == Order.Status.PAID), Decimal('0.00')),
         'orders_count': orders.count(),
-        'organization': organization,
+        'organization': org,
     })
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def buyer_order_detail(request, order_id):
     order = get_object_or_404(Order.objects.select_related('buyer', 'vendor'), id=order_id)
-    organization = _current_organization(request.user)
-    if not request.user.is_staff and organization and order.buyer_id != organization.id and order.vendor_id != organization.id:
-        raise Http404('Order not available.')
+    org = _get_user_organization(request.user)
+    if not request.user.is_staff and org and order.buyer_id != org.id and order.vendor_id != org.id:
+        raise Http404("Order not available.")
     return render(request, 'buyer/order_detail.html', {'order': order})
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_POST
 def quick_checkout(request, product_id):
-    product = next((item for item in SAMPLE_PRODUCTS if item['id'] == product_id), None)
-    if product is None:
-        raise Http404('Product not found.')
+    product = get_object_or_404(Product, id=product_id, is_active=True)
+    buyer_org = _get_user_organization(request.user)
 
-    buyer_org = _current_organization(request.user)
     if buyer_org is None:
         messages.error(request, 'Create or join a buyer organization first.')
-        return redirect('register-buyer')
-
-    vendor_org, _ = Organization.objects.get_or_create(
-        name=product['vendor_name'],
-        defaults={
-            'slug': _organization_slug(product['vendor_name']),
-            'org_type': Organization.OrgType.VENDOR,
-            'is_active': True,
-        },
-    )
+        return redirect('portal-register')
 
     order = Order.objects.create(
         buyer=buyer_org,
-        vendor=vendor_org,
+        vendor=product.vendor,
         created_by=request.user,
-        total_amount=product['unit_price'],
+        total_amount=product.unit_price,
         status=Order.Status.APPROVED,
     )
-    messages.success(request, f'Order #{order.id} created and approved for escrow payment.')
+    messages.success(request, f'Order #{order.id} generated for {product.name}. Ready for escrow lock.')
     return redirect('buyer-order-detail', order_id=order.id)
 
 
-# --- HTMX ACTIONS ---
+# ==========================================
+# HTMX ESCROW ACTIONS
+# ==========================================
 
-@login_required
+@login_required(login_url='portal-login')
 @require_POST
 def execute_order_payment_htmx(request, order_id):
     order = get_object_or_404(Order.objects.select_related('buyer', 'vendor'), id=order_id)
     if order.status != Order.Status.APPROVED:
-        return render(request, 'partials/order_status_card.html', {'order': order, 'error_message': 'Only approved orders can be charged.'})
+        return render(request, 'partials/order_status_card.html', {
+            'order': order,
+            'error_message': 'Only approved orders can be charged.'
+        })
 
     if order.execute_payment(payment_method='JAZZCASH'):
         order.refresh_from_db()
         messages.success(request, f'Escrow locked for Order #{order.id}.')
     else:
-        messages.error(request, f'Payment failed for Order #{order.id}.')
+        messages.error(request, f'Payment failed for Order #{order.id}. Check microservice logs.')
     return render(request, 'partials/order_status_card.html', {'order': order})
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_POST
 def settle_escrow_htmx(request, order_id):
     order = get_object_or_404(Order.objects.select_related('buyer', 'vendor'), id=order_id)
     if order.status != Order.Status.PAID:
-        return render(request, 'partials/order_status_card.html', {'order': order, 'error_message': 'Only paid orders can be settled.'})
+        return render(request, 'partials/order_status_card.html', {
+            'order': order,
+            'error_message': 'Only paid orders can be settled.'
+        })
 
     if order.complete_order():
         order.refresh_from_db()
@@ -318,39 +248,40 @@ def settle_escrow_htmx(request, order_id):
     return render(request, 'partials/order_status_card.html', {'order': order})
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_POST
 def dispute_refund_htmx(request, order_id):
     order = get_object_or_404(Order.objects.select_related('buyer', 'vendor'), id=order_id)
-    reason = request.POST.get('reason') or 'Quality dispute raised by buyer'
+    reason = request.POST.get('reason') or 'Dispute raised by buyer'
     if order.status != Order.Status.PAID:
-        return render(request, 'partials/order_status_card.html', {'order': order, 'error_message': 'Only paid orders can be refunded.'})
+        return render(request, 'partials/order_status_card.html', {
+            'order': order,
+            'error_message': 'Only paid orders can be refunded.'
+        })
 
-    refund_reference = order.cancel_and_refund(reason=reason)
+    refund_ref = order.cancel_and_refund(reason=reason)
     order.refresh_from_db()
-    if refund_reference:
-        messages.warning(request, f'Order #{order.id} refunded.')
+    if refund_ref:
+        messages.warning(request, f'Order #{order.id} refunded and cancelled.')
     else:
         messages.error(request, f'Refund failed for Order #{order.id}.')
     return render(request, 'partials/order_status_card.html', {'order': order})
 
 
-# --- VENDOR VIEWS ---
+# ==========================================
+# VENDOR PORTAL VIEWS
+# ==========================================
 
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def vendor_dashboard(request):
-    organization = _current_organization(request.user)
-    if organization and organization.org_type not in (Organization.OrgType.VENDOR, Organization.OrgType.BOTH) and not request.user.is_staff:
-        messages.error(request, 'Access restricted to vendor organizations.')
-        return redirect('buyer-catalog')
-
+    org = _get_user_organization(request.user)
     orders = (
-        Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id')
-        if organization else Order.objects.none()
+        Order.objects.filter(vendor=org).select_related('buyer', 'vendor').order_by('-id')
+        if org else Order.objects.none()
     )
     return render(request, 'vendor/dashboard.html', {
-        'organization': organization,
+        'organization': org,
         'orders': orders,
         'pending_orders': [o for o in orders if o.status in {Order.Status.APPROVED, Order.Status.PAID}],
         'total_volume': sum((o.total_amount for o in orders), Decimal('0.00')),
@@ -359,22 +290,19 @@ def vendor_dashboard(request):
     })
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_GET
 def vendor_wallet(request):
-    organization = _current_organization(request.user)
-    if organization and organization.org_type not in (Organization.OrgType.VENDOR, Organization.OrgType.BOTH) and not request.user.is_staff:
-        messages.error(request, 'Access restricted to vendor organizations.')
-        return redirect('buyer-catalog')
-
+    org = _get_user_organization(request.user)
     orders = (
-        Order.objects.filter(vendor=organization).select_related('buyer', 'vendor').order_by('-id')
-        if organization else Order.objects.none()
+        Order.objects.filter(vendor=org).select_related('buyer', 'vendor').order_by('-id')
+        if org else Order.objects.none()
     )
     available_balance = sum((o.total_amount for o in orders if o.status == Order.Status.COMPLETED), Decimal('0.00'))
     escrow_balance = sum((o.total_amount for o in orders if o.status == Order.Status.PAID), Decimal('0.00'))
+
     return render(request, 'vendor/wallet.html', {
-        'organization': organization,
+        'organization': org,
         'orders': orders,
         'available_balance': available_balance,
         'escrow_balance': escrow_balance,
@@ -383,14 +311,12 @@ def vendor_wallet(request):
     })
 
 
-@login_required
+@login_required(login_url='portal-login')
 @require_http_methods(['GET', 'POST'])
 def vendor_payout(request):
     if request.method == 'POST':
         amount = request.POST.get('amount') or '0'
-        messages.success(request, f'Payout request submitted for PKR {amount}.')
         return render(request, 'vendor/modals/payout_modal.html', {
-            'success_message': f'Payout request of PKR {amount} submitted successfully.',
+            'success_message': f'Payout request of PKR {amount} submitted to 1Link gateway.',
         })
-
     return render(request, 'vendor/modals/payout_modal.html', {})

@@ -1,16 +1,61 @@
 {% extends 'base.html' %}
 
-{% block title %}Order #{{ order.id }} | Enterprise Marketplace{% endblock %}
+{% block title %}Order #{{ order.id }} - Details{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-6 py-4">
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header / Breadcrumb -->
     <div class="flex items-center justify-between">
-        <a href="{% url 'buyer-orders' %}" class="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition">
-            ← Back to Purchase Orders
+        <div>
+            <a href="{% url 'buyer-orders' %}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 mb-1">
+                &larr; Back to My Orders
+            </a>
+            <h1 class="text-2xl font-black text-slate-900">Order #{{ order.id }}</h1>
+            <p class="text-xs text-slate-500">Placed on {{ order.created_at|date:"M d, Y, h:i A" }}</p>
+        </div>
+        <a href="{% url 'buyer-catalog' %}" class="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl transition">
+            Continue Shopping
         </a>
-        <span class="text-xs font-semibold text-slate-500">Order ID: #{{ order.id }}</span>
     </div>
 
-    {% include 'partials/order_status_card.html' with order=order error_message=error_message %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Order Overview & Parties -->
+        <div class="md:col-span-2 space-y-6">
+            <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h2 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">Transaction Summary</h2>
+                
+                <div class="grid grid-cols-2 gap-4 text-xs">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span class="text-slate-400 font-semibold block uppercase tracking-wider text-[10px]">Buyer Organization</span>
+                        <span class="font-bold text-slate-800 text-sm mt-0.5 block">{{ order.buyer.name }}</span>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span class="text-slate-400 font-semibold block uppercase tracking-wider text-[10px]">Vendor / Supplier</span>
+                        <span class="font-bold text-slate-800 text-sm mt-0.5 block">{{ order.vendor.name }}</span>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex items-center justify-between border-t border-slate-100">
+                    <span class="text-sm font-semibold text-slate-600">Total Purchase Amount</span>
+                    <span class="text-xl font-black text-slate-900">PKR {{ order.total_amount }}</span>
+                </div>
+            </div>
+
+            <!-- Ledger Audit Trail Details -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-3">
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Escrow Security Guarantee</h3>
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    Funds remain securely locked within the marketplace holding vault. Payout release is only finalized to the vendor once physical delivery and inspection are confirmed.
+                </p>
+            </div>
+        </div>
+
+        <!-- Right Column: Dynamic HTMX Status Card -->
+        <div class="md:col-span-1">
+            <div class="sticky top-24">
+                {% include 'partials/order_status_card.html' %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

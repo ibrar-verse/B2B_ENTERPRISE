@@ -1,59 +1,76 @@
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import AuthenticationForm
 
-from apps.core.models import User
-from apps.organizations.models import Organization
-
-
-class EnterpriseRegistrationMixin:
-    def clean_email(self):
-        email = self.cleaned_data['email'].strip().lower()
-        if User.objects.filter(email=email).exists():
-            raise forms.ValidationError('A user with this email already exists.')
-        return email
-
-    def clean_company_name(self):
-        company_name = self.cleaned_data['company_name'].strip()
-        if Organization.objects.filter(name__iexact=company_name).exists():
-            raise forms.ValidationError('An organization with this name already exists.')
-        return company_name
+User = get_user_model()
 
 
-class BuyerRegistrationForm(EnterpriseRegistrationMixin, forms.Form):
-    company_name = forms.CharField(
-        label="Enterprise / Organization Name",
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
-    )
-    tax_id = forms.CharField(
-        label="National Tax Number (NTN / Tax ID)",
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm', 'placeholder': 'e.g. 1234567-8'})
-    )
+class LoginForm(AuthenticationForm):
     username = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
-    )
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm', 'placeholder': 'procurement@company.com'})
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+            'placeholder': 'Enter username'
+        })
     )
     password = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+            'placeholder': 'Enter password'
+        })
     )
 
-class VendorRegistrationForm(EnterpriseRegistrationMixin, forms.Form):
-    company_name = forms.CharField(
-        label="Supplier / Vendor Business Name",
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
+
+class RegistrationForm(forms.ModelForm):
+    organization_name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+            'placeholder': 'Company or Business Name'
+        })
     )
-    tax_id = forms.CharField(
-        label="Sales Tax / NTN Registration",
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm', 'placeholder': 'e.g. STRN-9876543-2'})
-    )
-    username = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
-    )
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm', 'placeholder': 'sales@supplier.com'})
+    role = forms.ChoiceField(
+        choices=[('BUYER', 'Procurement Buyer'), ('VENDOR', 'Goods Supplier / Vendor')],
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500'
+        })
     )
     password = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm'})
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+            'placeholder': 'Create a password'
+        })
     )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+            'placeholder': 'Confirm your password'
+        })
+    )
+
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+        widgets = {
+            'username': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+                'placeholder': 'Username'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500',
+                'placeholder': 'Email address'
+            }),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+
+        if password and confirm_password and password != confirm_password:
+            self.add_error('confirm_password', 'Passwords do not match.')
+        return cleaned_data
+
+
+# Alias exports for backward compatibility
+PortalLoginForm = LoginForm
+OrganizationUserRegistrationForm = RegistrationForm

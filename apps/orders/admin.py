@@ -2,7 +2,30 @@ from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.urls import path, reverse
 from django.utils.html import format_html
-from apps.orders.models import Order
+
+from apps.orders.models import Order, Product
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "sku",
+        "vendor",
+        "category",
+        "unit_price_formatted",
+        "stock_quantity",
+        "is_active",
+        "created_at",
+    )
+    list_filter = ("category", "is_active", "vendor")
+    search_fields = ("name", "sku", "vendor__name", "category")
+    list_editable = ("is_active", "stock_quantity")
+    ordering = ("-created_at",)
+
+    @admin.display(description="Unit Price")
+    def unit_price_formatted(self, obj):
+        return f"PKR {obj.unit_price:,.2f}"
 
 
 @admin.register(Order)
@@ -26,10 +49,12 @@ class OrderAdmin(admin.ModelAdmin):
         "vendor__name",
         "payment_reference",
         "settlement_reference",
+        "refund_reference",
     )
     readonly_fields = (
         "payment_reference",
         "settlement_reference",
+        "refund_reference",
         "created_at",
         "updated_at",
     )
@@ -45,13 +70,11 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.display(description="Status")
     def status_badge(self, obj):
         color_map = {
-            Order.Status.DRAFT: "#6b7280",            # Gray
-            Order.Status.PENDING_APPROVAL: "#f59e0b", # Amber
-            Order.Status.APPROVED: "#3b82f6",         # Blue
-            Order.Status.PAID: "#10b981",             # Emerald
-            Order.Status.PROCESSING: "#8b5cf6",       # Purple
-            Order.Status.COMPLETED: "#059669",        # Dark Green
-            Order.Status.CANCELLED: "#ef4444",        # Red
+            getattr(Order.Status, "DRAFT", "DRAFT"): "#6b7280",          # Gray
+            getattr(Order.Status, "APPROVED", "APPROVED"): "#3b82f6",    # Blue
+            getattr(Order.Status, "PAID", "PAID"): "#10b981",            # Emerald
+            getattr(Order.Status, "COMPLETED", "COMPLETED"): "#059669",  # Dark Green
+            getattr(Order.Status, "CANCELLED", "CANCELLED"): "#ef4444",  # Red
         }
         color = color_map.get(obj.status, "#6b7280")
         return format_html(

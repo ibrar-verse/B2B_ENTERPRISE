@@ -1,88 +1,65 @@
-<section id="order-status-card" class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-  <div class="grid gap-8 p-8 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-    <div class="space-y-6">
-      <div>
-        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Purchase order summary</div>
-        <h2 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">PKR {{ order.total_amount|floatformat:2 }}</h2>
-        <p class="mt-2 text-slate-600">Buyer: <span class="font-semibold text-slate-900">{{ order.buyer.name }}</span></p>
-        <p class="text-slate-600">Vendor: <span class="font-semibold text-slate-900">{{ order.vendor.name }}</span></p>
-      </div>
-
-      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-slate-500">Current status</span>
-          <span class="rounded-full px-3 py-1 text-xs font-semibold 
-            {% if order.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700
-            {% elif order.status == 'PAID' %}bg-blue-100 text-blue-700
-            {% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-700
-            {% else %}bg-amber-100 text-amber-700{% endif %}">
+<div id="order-status-card" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payment Status</p>
+            <p class="text-lg font-bold text-slate-900">{{ order.get_status_display }}</p>
+        </div>
+        <span class="px-3 py-1 text-xs font-bold rounded-full 
+            {% if order.status == 'COMPLETED' %}bg-emerald-100 text-emerald-800
+            {% elif order.status == 'PAID' %}bg-blue-100 text-blue-800
+            {% elif order.status == 'APPROVED' %}bg-amber-100 text-amber-800
+            {% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-800
+            {% else %}bg-slate-100 text-slate-700{% endif %}">
             {{ order.status }}
-          </span>
-        </div>
-        <div class="mt-4 h-2 rounded-full bg-slate-200">
-          <div class="h-2 rounded-full bg-emerald-600 transition-all duration-500
-            {% if order.status == 'DRAFT' %}w-1/5
-            {% elif order.status == 'APPROVED' %}w-2/5
-            {% elif order.status == 'PAID' %}w-3/5
-            {% elif order.status == 'COMPLETED' %}w-full
-            {% else %}w-full bg-rose-500{% endif %}">
-          </div>
-        </div>
-      </div>
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Payment reference</div>
-          <div class="mt-2 break-all text-sm font-semibold text-slate-900">{{ order.payment_reference|default:'Pending escrow lock' }}</div>
-        </div>
-        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Settlement reference</div>
-          <div class="mt-2 break-all text-sm font-semibold text-slate-900">{{ order.settlement_reference|default:'Pending settlement' }}</div>
-        </div>
-      </div>
-
-      {% if error_message %}
-        <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error_message }}</div>
-      {% endif %}
+        </span>
     </div>
 
-    <div class="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-      <div class="flex flex-col gap-3">
+    {% if order.payment_reference %}
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs font-mono">
+            <span class="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Escrow Hold Ref</span> 
+            <span class="font-bold text-slate-800 break-all">{{ order.payment_reference }}</span>
+        </div>
+    {% endif %}
+
+    {% if order.settlement_reference %}
+        <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs font-mono">
+            <span class="text-emerald-700 block text-[10px] uppercase font-bold tracking-wider">Settlement Ref</span> 
+            <span class="font-bold text-emerald-900 break-all">{{ order.settlement_reference }}</span>
+        </div>
+    {% endif %}
+
+    {% if order.refund_reference %}
+        <div class="p-3 bg-rose-50 rounded-xl border border-rose-100 text-xs font-mono">
+            <span class="text-rose-700 block text-[10px] uppercase font-bold tracking-wider">Refund Ref</span> 
+            <span class="font-bold text-rose-900 break-all">{{ order.refund_reference }}</span>
+        </div>
+    {% endif %}
+
+    <div class="pt-2">
         {% if order.status == 'APPROVED' %}
-          <button hx-post="{% url 'htmx-order-pay' order.id %}" 
-                  hx-target="#order-status-card" 
-                  hx-swap="outerHTML" 
-                  class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition">
-            Lock escrow payment (JazzCash)
-          </button>
+            <button 
+                hx-post="{% url 'htmx-order-pay' order.id %}"
+                hx-target="#order-status-card"
+                hx-swap="outerHTML"
+                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition shadow-sm">
+                Lock escrow payment (JazzCash)
+            </button>
         {% elif order.status == 'PAID' %}
-          <button hx-post="{% url 'htmx-order-settle' order.id %}" 
-                  hx-target="#order-status-card" 
-                  hx-swap="outerHTML" 
-                  class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition">
-            Confirm delivery and release funds
-          </button>
-          <button hx-post="{% url 'htmx-order-refund' order.id %}" 
-                  hx-target="#order-status-card" 
-                  hx-swap="outerHTML" 
-                  hx-vals='{"reason": "Buyer raised dispute from order detail"}' 
-                  class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition">
-            Raise dispute and refund
-          </button>
+            <button 
+                hx-post="{% url 'htmx-order-settle' order.id %}"
+                hx-target="#order-status-card"
+                hx-swap="outerHTML"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition shadow-sm">
+                Confirm delivery and release funds
+            </button>
         {% elif order.status == 'COMPLETED' %}
-          <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-            ✓ Settlement released to the vendor wallet.
-          </div>
+            <div class="text-center py-3 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200">
+                ✓ Funds Settled to Vendor Wallet
+            </div>
         {% elif order.status == 'CANCELLED' %}
-          <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
-            ✕ This order has been refunded and cancelled.
-          </div>
-        {% else %}
-          <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Approval required before escrow can be locked.
-          </div>
+            <div class="text-center py-3 text-xs font-semibold text-rose-700 bg-rose-50 rounded-xl border border-rose-200">
+                ✕ Order Cancelled & Refunded
+            </div>
         {% endif %}
-      </div>
     </div>
-  </div>
-</section>
+</div>
